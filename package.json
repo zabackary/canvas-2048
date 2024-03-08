@@ -1,0 +1,24 @@
+{
+  "name": "canvas-2048",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@material/web": "^1.0.0",
+    "lit": "^2.8.0",
+    "lit-element-router": "^2.0.3"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.6",
+    "@types/node": "^20.8.0",
+    "js-yaml": "^4.1.0",
+    "typescript": "^5.2.2",
+    "vite": "^4.4.9",
+    "marked": "^9.0.3"
+  }
+}
