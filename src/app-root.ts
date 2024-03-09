@@ -47,16 +47,17 @@ export class AppRoot extends LitElement {
           ></md-checkbox>
           Tilting animation
         </label>
+        <!--
         <label>
           <md-checkbox
             ?checked=${this.classicTheme}
             @change=${(e: Event) => {
-              this.classicTheme =
-                (e.currentTarget as MdCheckbox)?.checked === true;
-            }}
+          this.classicTheme = (e.currentTarget as MdCheckbox)?.checked === true;
+        }}
           ></md-checkbox>
           Classic theme
         </label>
+        -->
       </p>
     `;
   }
