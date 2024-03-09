@@ -19,6 +19,10 @@ export class GameFrame extends LitElement {
   boardHeight = 4;
   @property({ attribute: "second-power-probability", type: Number })
   secondPowerProbability = 0.1;
+  @property({ attribute: "score", type: Number })
+  score = 0;
+  @property({ attribute: "tilting-animation", type: Boolean })
+  tiltingAnimation = false;
 
   render() {
     const calculatedWidth = 140 * this.boardWidth;
@@ -64,14 +68,27 @@ export class GameFrame extends LitElement {
         () => {
           requestAnimationFrame(() => {
             const now = new Date().getTime();
-            this.gameManager?.render(now - lastUpdate);
+            this.gameManager?.render(now - lastUpdate, this.tiltingAnimation);
+            if (this.gameManager?.score ?? 0 !== this.score) {
+              this.score = this.gameManager?.score ?? 0;
+              this.dispatchEvent(
+                new CustomEvent("scoreChanged", { detail: this.score })
+              );
+            }
             lastUpdate = now;
           });
         },
         this.canvasWidth / (15 * this.boardWidth),
         this.secondPowerProbability
       );
+    } else {
+      this.gameManager.render(0, this.tiltingAnimation);
     }
+  }
+
+  reset() {
+    this.gameManager = undefined;
+    this.requestUpdate();
   }
 
   connectedCallback(): void {

@@ -1,3 +1,5 @@
+import { POWER } from "../GameManager";
+
 const COLOR_PROGRESSION: [string, number][] = [
   ["#000000", 1], // 1
   ["#EEE4DA", 0], // 2
@@ -28,7 +30,7 @@ export default function renderTile(
       ? COLOR_PROGRESSION.at(-1)!
       : COLOR_PROGRESSION[value];
   renderTileBackground(ctx, lx, ly, tileSize, scale, colorSet[0], tilePadding);
-  const displayedValue = 2 ** value;
+  const displayedValue = POWER ** value;
   const textColor = colorSet[1] > 0 ? "#F9F6F2" : "#776E65";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";

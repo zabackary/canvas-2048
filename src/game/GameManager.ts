@@ -3,6 +3,7 @@ import renderTile, { renderTileBackground } from "./renderer/renderTile";
 const ANIMATION_DURATION = 300;
 const MSG_ANIMATION_DURATION = 1000;
 const MSG_PADDING = 50;
+export const POWER = 2;
 
 let nextId = 0;
 const defaultInterpolator = (from: number, to: number, fraction: number) =>
@@ -13,6 +14,30 @@ export enum Direction {
   DOWN,
   LEFT,
   RIGHT,
+}
+
+function directionToSkew(direction: Direction | undefined): [number, number] {
+  let xSkew = 0;
+  let ySkew = 0;
+  switch (direction) {
+    case Direction.UP: {
+      ySkew = -0.1;
+      break;
+    }
+    case Direction.DOWN: {
+      ySkew = 0.1;
+      break;
+    }
+    case Direction.LEFT: {
+      xSkew = -0.1;
+      break;
+    }
+    case Direction.RIGHT: {
+      xSkew = 0.1;
+      break;
+    }
+  }
+  return [xSkew, ySkew];
 }
 
 export enum MoveResult {
@@ -35,13 +60,15 @@ class GameTile {
 
 class GameState {
   public static new(width: number, height: number) {
+    if (width < 1 || height < 1) throw new Error("invalid dimensions");
     return new GameState([], width, height).createTile()!;
   }
 
   private constructor(
     public tiles: GameTile[],
     public width: number,
-    public height: number
+    public height: number,
+    public score: number = 0
   ) {}
 
   /**
@@ -77,7 +104,12 @@ class GameState {
     if (possibleTiles.length === 0) return undefined;
     const newTile =
       possibleTiles[Math.floor(Math.random() * possibleTiles.length)];
-    return new GameState([...this.tiles, newTile], this.width, this.height);
+    return new GameState(
+      [...this.tiles, newTile],
+      this.width,
+      this.height,
+      this.score
+    );
   }
 
   /**
@@ -85,6 +117,7 @@ class GameState {
    * @returns The new game state
    */
   shiftTiles(direction: Direction): GameState {
+    let newScore = this.score;
     const delta =
       direction === Direction.UP || direction === Direction.LEFT ? 1 : -1;
     if (direction === Direction.UP || direction === Direction.DOWN) {
@@ -104,6 +137,7 @@ class GameState {
             ) {
               newTiles[newTiles.length - 1].mergedTileId = tile.id;
               newTiles[newTiles.length - 1].value += 1;
+              newScore += POWER ** newTiles[newTiles.length - 1].value;
             } else {
               newTiles.push(new GameTile(ix, firstEmpty, tile.value, tile.id));
               firstEmpty += delta;
@@ -111,7 +145,7 @@ class GameState {
           }
         }
       }
-      return new GameState(newTiles, this.width, this.height);
+      return new GameState(newTiles, this.width, this.height, newScore);
     } else if (direction === Direction.LEFT || direction === Direction.RIGHT) {
       const newTiles: GameTile[] = [];
       const start = direction === Direction.LEFT ? 0 : this.width - 1;
@@ -129,6 +163,7 @@ class GameState {
             ) {
               newTiles[newTiles.length - 1].mergedTileId = tile.id;
               newTiles[newTiles.length - 1].value += 1;
+              newScore += POWER ** newTiles[newTiles.length - 1].value;
             } else {
               newTiles.push(new GameTile(firstEmpty, iy, tile.value, tile.id));
               firstEmpty += delta;
@@ -136,7 +171,7 @@ class GameState {
           }
         }
       }
-      return new GameState(newTiles, this.width, this.height);
+      return new GameState(newTiles, this.width, this.height, newScore);
     } else {
       throw new Error("impossible!");
     }
@@ -243,6 +278,8 @@ export default class GameManager {
   state: GameState;
   private oldState: GameState | undefined;
   private animationInterpolationState = 0;
+  private animationLastDirection: Direction | undefined;
+  private animationDirection: Direction | undefined;
   private noMovesAnimationInterpolationState = 0;
   public canvasWidth: number = 0;
   public canvasHeight: number = 0;
@@ -280,7 +317,7 @@ export default class GameManager {
     this.scheduleUpdate();
   }
 
-  render(msSinceLastRender: number) {
+  render(msSinceLastRender: number, tiltingAnimation: boolean = true) {
     let updateScheduled = false;
     if (this.animationInterpolationState < 1) {
       if (this.animationInterpolationState === 0)
@@ -315,6 +352,30 @@ export default class GameManager {
 
     this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
 
+    if (tiltingAnimation) {
+      const [lastXSkew, lastYSkew] = directionToSkew(
+        this.animationLastDirection
+      );
+      const [newXSkew, newYSkew] = directionToSkew(this.animationDirection);
+      const xSkew = defaultInterpolator(
+        lastXSkew,
+        newXSkew,
+        this.animationInterpolationState
+      );
+      const ySkew = defaultInterpolator(
+        lastYSkew,
+        newYSkew,
+        this.animationInterpolationState
+      );
+      this.ctx.transform(
+        0.8,
+        xSkew,
+        ySkew,
+        0.8,
+        0.1 * this.canvasWidth + ySkew * this.canvasWidth * -0.5,
+        0.1 * this.canvasHeight + xSkew * this.canvasHeight * -0.5
+      );
+    }
     this.ctx.beginPath();
     this.ctx.roundRect(
       0,
@@ -394,6 +455,11 @@ export default class GameManager {
       );
     }
     this.ctx.globalAlpha = 1;
+    this.ctx.resetTransform();
+  }
+
+  get score() {
+    return this.state.score;
   }
 
   handleKeyPressed(direction: Direction): MoveResult {
@@ -402,6 +468,7 @@ export default class GameManager {
       return MoveResult.STILL_ANIMATING;
     }
     if (this.noMoves) {
+      this.animationDirection = undefined;
       return MoveResult.GAME_OVER;
     }
     this.oldState = this.state;
@@ -411,10 +478,13 @@ export default class GameManager {
     }
     const newState = shiftedState.createTile(this.secondPowerProbability);
     if (!newState) {
+      this.animationDirection = undefined;
       return MoveResult.GAME_OVER;
     } else {
       this.state = newState;
       this.animationInterpolationState = 0;
+      this.animationLastDirection = this.animationDirection;
+      this.animationDirection = direction;
       this.scheduleUpdate();
       if (
         [Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT].every(
@@ -422,6 +492,7 @@ export default class GameManager {
         )
       ) {
         this.noMoves = true;
+        this.animationDirection = undefined;
         return MoveResult.GAME_OVER;
       }
     }
